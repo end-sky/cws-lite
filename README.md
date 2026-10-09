@@ -6,6 +6,7 @@ A small, self-hosted front end for browsing Chrome Web Store extensions and them
 
 - Search modes for **Extensions** and **Themes**.
 - Scrapes public Chrome Web Store search-page HTML first, then falls back to DuckDuckGo and Bing public HTML search results if the Store page cannot be parsed.
+- Each result shows title, publisher and description; anything the search page lacks (always the publisher) is filled in from the listing's own page.
 - Downloads the original `.crx` package from Google's official update endpoint; no third-party CRX mirrors are involved.
 - Light/dark appearance toggle in the top-right corner.
 - Small in-memory search cache to avoid fetching the same query repeatedly.
@@ -39,6 +40,12 @@ go test ./...
 
 - `ADDR` changes the listen address. Default: `127.0.0.1:8080`. Use `ADDR=0.0.0.0:8080` only if you intentionally want other devices on your network to access the UI.
 - `CWS_PRODVERSION` overrides the Chrome version sent to Google's CRX update endpoint. By default, CWS Lite extracts the version from the requesting browser's user agent, falling back to `156.0.0.0`. Use four numeric version components, such as `156.0.0.0`.
+
+## Code layout
+
+- `main.go` – HTTP server, API handlers, search cache, CRX download.
+- `scrapers.go` – all Web Store / search-index fetching and parsing, plus detail-page enrichment.
+- `web/index.html` – embedded frontend.
 
 ## Nix
 

@@ -106,6 +106,7 @@
     .result-title { margin: 1px 0 3px; font-size: 15px; line-height: 1.35; font-weight: 750; letter-spacing: -.015em; overflow-wrap: anywhere; }
     .result-title a { text-decoration: none; }
     .result-title a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .result-publisher { margin: 0 0 3px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .kind-label { margin: 0 0 7px; color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
     .result-description { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0 0 13px; overflow-wrap: anywhere; }
     .result-actions { margin-top: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -367,7 +368,14 @@
             const params = new URLSearchParams({ id: item.id || '', name: item.name || item.id || 'chrome-store-item', type: category });
             addLink(actions, `/api/download?${params.toString()}`, 'Install / download .crx', 'download-link', true);
             addLink(actions, item.url || `https://chromewebstore.google.com/detail/${encodeURIComponent(item.id || '')}`, 'View listing ↗', 'listing-link');
-            body.append(h3, kindLabel, description, actions);
+            if (item.publisher) {
+              const publisher = document.createElement('p');
+              publisher.className = 'result-publisher';
+              publisher.textContent = `by ${item.publisher}`;
+              body.append(h3, publisher, kindLabel, description, actions);
+            } else {
+              body.append(h3, kindLabel, description, actions);
+            }
             card.append(icon, body);
             grid.append(card);
           });
