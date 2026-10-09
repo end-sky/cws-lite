@@ -23,9 +23,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"cws-lite/web"
 )
 
-//go:embed web/*
+//go:embed web/index.html web/style.css
 var webFiles embed.FS
 
 const (
@@ -124,6 +126,10 @@ func main() {
 	mux.HandleFunc("GET /api/download", handleDownload)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+	mux.HandleFunc("GET /scripts.js", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		_, _ = io.WriteString(w, web.Script)
 	})
 	mux.Handle("/", http.FileServer(http.FS(webFS)))
 
