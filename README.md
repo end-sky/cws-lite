@@ -1,16 +1,17 @@
-# CWS Lite
+# CWS Lite 1.0.0
 
-A small, self-hosted front end for browsing Chrome Web Store extensions and themes. It is written in Go and plain HTML/CSS/JavaScript, uses only the Go standard library, and embeds its frontend into the executable. No database, account, Node.js, or external frontend assets are required.
+A small, self-hosted front end for browsing and downloading extensions and themes from the Chrome Web Store and Firefox Add-ons. It is written in Go and plain HTML/CSS/JavaScript, uses only the Go standard library, and embeds its frontend into the executable. No database, account, Node.js, or external frontend assets are required.
 
 ## Features
 
-- Search modes for **Extensions** and **Themes**.
+- Two stores: **Chrome Web Store** (`.crx`) and **Firefox Add-ons** (`.xpi`), each with **Extensions** and **Themes** search.
+- Plain, lightweight 90s-style search page with no external assets.
 - Scrapes public Chrome Web Store search-page HTML first, then falls back to DuckDuckGo and Bing public HTML search results if the Store page cannot be parsed.
 - Each result shows title, publisher and description; anything the search page lacks (always the publisher) is filled in from the listing's own page.
-- Downloads the original `.crx` package from Google's official update endpoint; no third-party CRX mirrors are involved.
+- Downloads the original `.crx` from Google's official update endpoint, or the signed `.xpi` from addons.mozilla.org; no third-party mirrors are involved.
 - Light/dark appearance toggle in the top-right corner.
 - Small in-memory search cache to avoid fetching the same query repeatedly.
-- Built-in installation/search troubleshooting for Chromium and Ungoogled Chromium.
+- Built-in installation/search troubleshooting for Chromium, Ungoogled Chromium and Firefox.
 - Localhost-only by default, with a Nix flake for packaging.
 
 ## Run
@@ -43,9 +44,15 @@ go test ./...
 
 ## Code layout
 
-- `main.go` – HTTP server, API handlers, search cache, CRX download.
-- `scrapers.go` – all Web Store / search-index fetching and parsing, plus detail-page enrichment.
-- `web/index.html` – embedded frontend.
+```
+main.go        HTTP server, routing, search cache
+common/        shared types (Listing, SearchResponse) and helpers
+google/        Chrome Web Store: HTML scraper, detail-page enrichment, CRX download
+firefox/       Firefox Add-ons: addons.mozilla.org API search, XPI download
+web/           embedded front end: index.html, style.css, scripts.go (JS as a Go string)
+```
+
+API: `GET /api/search?q=…&type=extensions|themes&store=google|firefox`, `GET /api/download?store=…&id=…&name=…`, `GET /api/health`. `store` defaults to `google`.
 
 ## Nix
 
@@ -81,6 +88,10 @@ Try opening `chrome://extensions`, enabling **Developer mode**, and dragging the
 
 Themes are distributed as CRX packages too, but the exact prompt varies by browser build.
 
+### Firefox
+
+Firefox add-ons are served as `.xpi` with the `application/x-xpinstall` type, so Firefox should show its normal install prompt. If it only saves the file, open `about:addons`, click the gear and choose **Install Add-on From File…**. The packages are the signed originals from addons.mozilla.org, resolved through Mozilla's public API and only fetched from `addons.mozilla.org` / `addons.cdn.mozilla.net`.
+
 ## Troubleshooting
 
 **Search shows no results.** The Chrome Web Store is a JavaScript-heavy site and its markup changes. CWS Lite tries the public Store page and then a public search-index fallback; either source can be temporarily blocked, rate-limited, or incomplete. Try another query, check the server's internet/proxy access, or open the [official Web Store](https://chromewebstore.google.com/).
@@ -96,6 +107,10 @@ Themes are distributed as CRX packages too, but the exact prompt varies by brows
 The search handler requests the public Store search URL with a normal browser-like user agent and parses Store listing links from the returned HTML. If that response has no parseable listings, it queries DuckDuckGo and then Bing with a `site:chromewebstore.google.com/detail` filter. Those fallback paths are indexed-result fallbacks, not direct Store result feeds, and are labeled as such in the UI. The scraper does not attempt to solve CAPTCHAs, bypass logins, or evade anti-bot challenges.
 
 Downloads are restricted to IDs in Chrome's 32-character `a`–`p` format and sent to `https://clients2.google.com/service/update2/crx`. The response is checked for the `Cr24` CRX signature before it is streamed to the browser.
+
+## How the Firefox search works
+
+No scraping: `firefox/` calls Mozilla's documented v5 API (`/api/v5/addons/search/` for search, `/api/v5/addons/addon/<slug>/` for the current package URL). Extensions use `type=extension`, themes `type=statictheme`. Titles, publishers, descriptions and icons come straight from the API response.
 
 ## License
 
