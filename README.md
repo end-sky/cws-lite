@@ -1,4 +1,4 @@
-# CWS Lite 1.0.0
+# CWS Lite 1.1.0
 
 A small, self-hosted front end for browsing and downloading extensions and themes from the Chrome Web Store and Firefox Add-ons. It is written in Go and plain HTML/CSS/JavaScript, uses only the Go standard library, and embeds its frontend into the executable. No database, account, Node.js, or external frontend assets are required.
 
