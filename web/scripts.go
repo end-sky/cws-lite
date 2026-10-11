@@ -7,196 +7,171 @@
 package web
 
 // Script is the page's JavaScript.
-const Script = `(() => {
-  const root = document.documentElement;
-  const themeToggle = document.getElementById('themeToggle');
-  const themeLabel = document.getElementById('themeLabel');
-  const themeIcon = document.getElementById('themeIcon');
-  const searchForm = document.getElementById('searchForm');
-  const searchInput = document.getElementById('searchInput');
-  const searchButton = document.getElementById('searchButton');
-  const resultsSection = document.getElementById('resultsSection');
-  const resultsContent = document.getElementById('resultsContent');
-  const modeButtons = [...document.querySelectorAll('[data-kind]')];
-  let kind = 'extensions';
-  let activeController = null;
+const Script = `(function () {
+  'use strict';
+  var root = document.documentElement;
+  var themeToggle = document.getElementById('themeToggle');
+  var searchForm = document.getElementById('searchForm');
+  var searchInput = document.getElementById('searchInput');
+  var searchButton = document.getElementById('searchButton');
+  var resultsSection = document.getElementById('resultsSection');
+  var resultsContent = document.getElementById('resultsContent');
+  var activeController = null;
 
-  const sun = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>';
-  const moon = '<path d="M20.8 14.1A8.4 8.4 0 0 1 9.9 3.2 8.7 8.7 0 1 0 20.8 14.1Z"/>';
-  const downloadIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 17v3h14v-3"/></svg>';
+  var STORES = {
+    google: { name: 'Chrome Web Store', ext: '.crx', action: 'Download .crx', noun: { extensions: 'Extension', themes: 'Theme' } },
+    firefox: { name: 'Firefox Add-ons', ext: '.xpi', action: 'Install .xpi', noun: { extensions: 'Add-on', themes: 'Theme' } }
+  };
 
-  function setTheme(theme) {
-    const dark = theme === 'dark';
+  /* ---- theme ---- */
+  function setTheme(theme, save) {
+    var dark = theme === 'dark';
     root.dataset.theme = dark ? 'dark' : 'light';
-    themeLabel.textContent = dark ? 'Light mode' : 'Dark mode';
-    themeIcon.innerHTML = dark ? moon : sun;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = dark ? '#11151b' : '#f6f7f9';
-    try { localStorage.setItem('cws-lite-theme', dark ? 'dark' : 'light'); } catch (_) {}
+    themeToggle.textContent = dark ? 'Light mode' : 'Dark mode';
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = dark ? '#1a1a1a' : '#ffffff';
+    if (save) { try { localStorage.setItem('cws-lite-theme', theme); } catch (_) {} }
   }
-  let savedTheme = 'light';
-  try { savedTheme = localStorage.getItem('cws-lite-theme') || 'light'; } catch (_) {}
-  setTheme(savedTheme);
-  themeToggle.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
+  var saved = null;
+  try { saved = localStorage.getItem('cws-lite-theme'); } catch (_) {}
+  if (saved !== 'dark' && saved !== 'light') {
+    saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  setTheme(saved, false);
+  themeToggle.addEventListener('click', function () {
+    setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', true);
+  });
 
-  modeButtons.forEach(button => button.addEventListener('click', () => {
-    kind = button.dataset.kind;
-    modeButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
-    searchInput.placeholder = kind === 'themes' ? 'Search themes…' : 'Search extensions…';
-  }));
+  /* ---- helpers ---- */
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
 
-  function showMessage(title, body, isError = false) {
-    const box = document.createElement('div');
-    box.className = 'message' + (isError ? ' error' : '');
-    const heading = document.createElement('strong');
-    heading.textContent = title;
-    const text = document.createElement('div');
-    text.textContent = body;
-    box.append(heading, text);
-    resultsContent.replaceChildren(box);
+  function showMessage(text, isError) {
+    resultsContent.replaceChildren(el('p', 'message' + (isError ? ' error' : ''), text));
   }
 
   function setLoading(loading) {
     resultsSection.setAttribute('aria-busy', String(loading));
     searchButton.disabled = loading;
-    searchButton.innerHTML = loading
-      ? '<span class="loading-dots" aria-hidden="true"><span></span><span></span><span></span></span><span>Searching</span>'
-      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg><span>Search</span>';
+    searchButton.textContent = loading ? 'Searching...' : 'Search';
   }
 
-  function addLink(parent, href, label, className, isDownload = false) {
-    const link = document.createElement('a');
-    link.href = href;
-    link.className = className;
-    link.textContent = label;
-    if (isDownload) {
-      const iconWrap = document.createElement('span');
-      iconWrap.innerHTML = downloadIcon;
-      link.textContent = '';
-      link.append(iconWrap.firstElementChild, document.createTextNode(label));
-      link.setAttribute('download', '');
-    } else {
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-    }
-    parent.append(link);
-    return link;
+  function displayURL(raw) {
+    try {
+      var u = new URL(raw);
+      return u.hostname + u.pathname.replace(/\/$/, '');
+    } catch (_) { return raw; }
   }
 
-  function renderResults(payload, query, category) {
-    const results = Array.isArray(payload.results) ? payload.results : [];
-    const header = document.createElement('div');
-    header.className = 'results-head';
-    const title = document.createElement('h2');
-    title.textContent = results.length ? results.length + ' ' + (category === 'themes' ? 'themes' : 'extensions') + ' found' : 'No listings found';
-    const meta = document.createElement('div');
-    meta.className = 'results-meta';
-    meta.textContent = payload.source ? 'Source: ' + payload.source : 'Search results';
-    header.append(title, meta);
+  function placeholderIcon(item) {
+    return el('div', 'icon blank', (item.name || '?').trim().charAt(0).toUpperCase());
+  }
 
-    const fragment = document.createDocumentFragment();
-    fragment.append(header);
+  function iconFor(item) {
+    if (!item.icon || !/^https:\/\//i.test(item.icon)) return placeholderIcon(item);
+    var img = document.createElement('img');
+    img.className = 'icon';
+    img.src = item.icon;
+    img.alt = '';
+    img.width = 32;
+    img.height = 32;
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', function () { img.replaceWith(placeholderIcon(item)); });
+    return img;
+  }
+
+  function listingURL(item) {
+    return item.url || 'https://chromewebstore.google.com/detail/' + encodeURIComponent(item.id || '');
+  }
+
+  function link(href, label, className, external) {
+    var a = el('a', className, label);
+    a.href = href;
+    if (external) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    return a;
+  }
+
+  /* ---- rendering ---- */
+  function renderResults(payload, query, store, kind) {
+    var info = STORES[store];
+    var results = Array.isArray(payload.results) ? payload.results : [];
+    var fragment = document.createDocumentFragment();
+
+    var bar = el('div', 'bar');
+    var left = el('span');
+    left.append('Searched ', el('b', '', info.name), ' for ', el('b', '', query));
+    bar.append(left, el('span', '', results.length + ' ' + kind));
+    fragment.append(bar);
+
     if (!results.length) {
-      const note = document.createElement('div');
-      note.className = 'message';
-      const strong = document.createElement('strong');
-      strong.textContent = 'Nothing came back for “' + query + '”';
-      const p = document.createElement('div');
-      p.textContent = payload.note || 'Try a different or shorter search term.';
-      note.append(strong, p);
-      fragment.append(note);
-    } else {
-      const grid = document.createElement('div');
-      grid.className = 'results-grid';
-      results.forEach(item => {
-        const card = document.createElement('article');
-        card.className = 'result-card';
-        const icon = document.createElement('div');
-        icon.className = 'result-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        if (item.icon && /^https:\/\//i.test(item.icon)) {
-          const image = document.createElement('img');
-          image.src = item.icon;
-          image.alt = '';
-          image.loading = 'lazy';
-          image.referrerPolicy = 'no-referrer';
-          image.addEventListener('error', () => { icon.replaceChildren(document.createTextNode((item.name || '?').trim().charAt(0).toUpperCase())); });
-          icon.append(image);
-        } else {
-          icon.textContent = (item.name || '?').trim().charAt(0).toUpperCase();
-        }
-        const body = document.createElement('div');
-        body.className = 'result-body';
-        const h3 = document.createElement('h3');
-        h3.className = 'result-title';
-        const listing = document.createElement('a');
-        listing.textContent = item.name || 'Chrome Web Store listing';
-        listing.href = item.url || 'https://chromewebstore.google.com/detail/' + encodeURIComponent(item.id || '');
-        listing.target = '_blank';
-        listing.rel = 'noopener noreferrer';
-        h3.append(listing);
-        const kindLabel = document.createElement('div');
-        kindLabel.className = 'kind-label';
-        kindLabel.textContent = category === 'themes' ? 'Theme' : 'Extension';
-        const description = document.createElement('p');
-        description.className = 'result-description';
-        description.textContent = item.description || 'Open the official listing to see the description, permissions, reviews, and publisher details.';
-        const actions = document.createElement('div');
-        actions.className = 'result-actions';
-        const params = new URLSearchParams({ id: item.id || '', name: item.name || item.id || 'chrome-store-item', type: category });
-        addLink(actions, '/api/download?' + params.toString(), 'Install / download .crx', 'download-link', true);
-        addLink(actions, item.url || 'https://chromewebstore.google.com/detail/' + encodeURIComponent(item.id || ''), 'View listing ↗', 'listing-link');
-        if (item.publisher) {
-          const publisher = document.createElement('p');
-          publisher.className = 'result-publisher';
-          publisher.textContent = 'by ' + item.publisher;
-          body.append(h3, publisher, kindLabel, description, actions);
-        } else {
-          body.append(h3, kindLabel, description, actions);
-        }
-        card.append(icon, body);
-        grid.append(card);
-      });
-      fragment.append(grid);
-      if (payload.note) {
-        const note = document.createElement('p');
-        note.className = 'search-hint';
-        note.textContent = payload.note;
-        fragment.append(note);
-      }
+      var empty = el('div', 'message');
+      empty.append(el('p', '', 'Nothing came back for "' + query + '".'));
+      empty.append(el('p', 'note', payload.note || 'Try a different or shorter search term.'));
+      fragment.append(empty);
+      resultsContent.replaceChildren(fragment);
+      return;
     }
+
+    var list = el('ol', 'results');
+    results.forEach(function (item) {
+      var row = el('li', 'result');
+      var body = el('div', 'body');
+
+      var title = el('h3');
+      title.append(link(listingURL(item), item.name || 'Listing', '', true));
+      if (item.publisher) title.append(el('span', 'by', ' - by ' + item.publisher));
+      body.append(title);
+
+      body.append(el('div', 'desc', item.description || 'No description available.'));
+
+      var meta = el('div', 'meta', displayURL(listingURL(item)) + ' - ' + info.noun[kind]);
+      var params = new URLSearchParams({ store: store, id: item.id || '', name: item.name || item.id || 'download', type: kind });
+      meta.append(link('/api/download?' + params.toString(), info.action, 'dl'));
+      body.append(meta);
+
+      row.append(iconFor(item), body);
+      list.append(row);
+    });
+    fragment.append(list);
+    if (payload.note) fragment.append(el('p', 'note', payload.note));
     resultsContent.replaceChildren(fragment);
   }
 
-  searchForm.addEventListener('submit', async event => {
+  /* ---- search ---- */
+  searchForm.addEventListener('submit', function (event) {
     event.preventDefault();
-    const query = searchInput.value.trim();
-    if (!query) {
-      searchInput.focus();
-      return;
-    }
+    var query = searchInput.value.trim();
+    if (!query) { searchInput.focus(); return; }
+    var data = new FormData(searchForm);
+    var store = data.get('store') === 'firefox' ? 'firefox' : 'google';
+    var kind = data.get('kind') === 'themes' ? 'themes' : 'extensions';
+
     if (activeController) activeController.abort();
-    const controller = new AbortController();
+    var controller = new AbortController();
     activeController = controller;
     setLoading(true);
-    showMessage('Searching…', 'Fetching public Web Store listings.');
-    try {
-      const params = new URLSearchParams({ q: query, type: kind });
-      const response = await fetch('/api/search?' + params.toString(), { signal: controller.signal, headers: { 'Accept': 'application/json' } });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Search failed (HTTP ' + response.status + ').');
-      renderResults(payload, query, kind);
-      if (payload.source && payload.source.startsWith('public search index')) {
-        const meta = resultsContent.querySelector('.results-meta');
-        if (meta) meta.title = 'The Store did not expose readable results; using an indexed search fallback.';
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') return;
-      showMessage('Search could not finish', (error.message || 'Unexpected error.') + ' Check the connection and open the troubleshooting section below for common fixes.', true);
-    } finally {
-      if (activeController === controller) setLoading(false);
-    }
+    showMessage('Searching ' + STORES[store].name + '...', false);
+
+    var params = new URLSearchParams({ q: query, type: kind, store: store });
+    fetch('/api/search?' + params.toString(), { signal: controller.signal, headers: { Accept: 'application/json' } })
+      .then(function (response) {
+        return response.json().then(function (payload) {
+          if (!response.ok) throw new Error(payload.error || 'Search failed (HTTP ' + response.status + ').');
+          renderResults(payload, query, store, kind);
+        });
+      })
+      .catch(function (error) {
+        if (error.name === 'AbortError') return;
+        showMessage((error.message || 'Unexpected error.') + ' Check your connection, then see "Trouble installing" below for common fixes.', true);
+      })
+      .then(function () {
+        if (activeController === controller) setLoading(false);
+      });
   });
 })();
-  
 `

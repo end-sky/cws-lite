@@ -13,13 +13,13 @@
         in {
           default = pkgs.buildGoModule {
             pname = "cws-lite";
-            version = "0.1.0";
+            version = "1.0.0";
             src = ./.;
             vendorHash = null;
             subPackages = [ "." ];
             ldflags = [ "-s" "-w" ];
             meta = {
-              description = "Lightweight front end for Chrome Web Store extensions and themes";
+              description = "Lightweight front end for Chrome Web Store and Firefox Add-ons";
               license = pkgs.lib.licenses.mit;
               mainProgram = "cws-lite";
             };

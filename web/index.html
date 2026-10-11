@@ -4,82 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#f6f7f9">
-  <title>CWS Lite — Extensions & Themes</title>
+  <meta name="theme-color" content="#ffffff">
+  <title>CWS Lite - Extensions &amp; Themes</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="CWS Lite home">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="8.5"/></svg>
-      </span>
-      <span class="brand-name">CWS Lite</span><span class="brand-note">Extensions, minus the clutter</span>
-    </a>
-    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch color theme">
-      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
-      <span id="themeLabel">Dark mode</span>
-    </button>
-  </header>
+  <div class="topnav">
+    <button class="linkish" id="themeToggle" type="button">Dark mode</button>
+  </div>
 
-  <main>
-    <section class="hero" aria-labelledby="pageTitle">
-      <p class="eyebrow">A lightweight front end for Chromium</p>
-      <h1 id="pageTitle">A better way to find browser add-ons.</h1>
-      <p class="subtitle">Search extensions and themes, then download the original CRX package from Google's update service.</p>
-      <div class="search-wrap">
-        <div class="mode-row" role="group" aria-label="Search category">
-          <button class="mode-button" type="button" data-kind="extensions" aria-pressed="true">Extensions</button>
-          <button class="mode-button" type="button" data-kind="themes" aria-pressed="false">Themes</button>
-        </div>
-        <form class="search-form" id="searchForm" role="search">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg>
-          <input class="search-input" id="searchInput" name="q" type="search" placeholder="Search extensions…" autocomplete="off" maxlength="120" aria-label="Search the Chrome Web Store" required>
-          <button class="search-button" id="searchButton" type="submit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg><span>Search</span>
-          </button>
-        </form>
-        <p class="search-hint">No account required. Results are fetched on the server, not through third-party scripts.</p>
-      </div>
-    </section>
+  <div class="page">
+    <h1 class="wordmark">CWS<span> Lite</span></h1>
+    <p class="tagline">Browser extensions &amp; themes, nothing else.</p>
 
-    <section class="results-section" id="resultsSection" aria-live="polite" aria-busy="false">
-      <div id="resultsContent">
-        <div class="message">
-          <strong>Start with a search</strong>
-          Choose extensions or themes above, then enter a name or keyword.
-        </div>
+    <form id="searchForm" role="search" class="searchbox">
+      <input id="searchInput" name="q" type="text" maxlength="120" autocomplete="off" autofocus aria-label="Search" required>
+      <div class="buttons">
+        <button id="searchButton" type="submit">Search</button>
       </div>
-    </section>
 
-    <details class="troubleshooting" id="troubleshooting">
-      <summary>Having trouble installing a downloaded CRX?</summary>
-      <div class="trouble-content">
-        <div>
-          <h3>Ungoogled Chromium</h3>
-          <p>Open <code>chrome://flags/#extension-mime-request-handling</code> and set <strong>Handling of extension MIME type requests</strong> to <strong>Always prompt for install</strong>, then relaunch. If that flag is missing, open <code>chrome://extensions</code>, enable <strong>Developer mode</strong>, and drag the downloaded <code>.crx</code> file onto the page.</p>
-        </div>
-        <div>
-          <h3>Chromium or Google Chrome</h3>
-          <p>Try enabling Developer mode at <code>chrome://extensions</code> and dragging the file onto that page. Some browser builds, operating systems, or managed-device policies block local CRX installs regardless of the flag; in that case open the listing and use the browser's supported installation method.</p>
-        </div>
-        <div>
-          <h3>“Invalid package” or no prompt</h3>
-          <p>Right-click the download link and choose <strong>Save link as</strong>, then retry from the local file. Confirm the file is not zero bytes and that your connection or proxy did not replace the response with an error page.</p>
-        </div>
-        <div>
-          <h3>Search returns no listings</h3>
-          <p>The Store is a JavaScript-heavy site and changes often. Try a shorter search, check your connection/proxy, or open <a href="https://chromewebstore.google.com/" target="_blank" rel="noopener noreferrer">the official Chrome Web Store</a>. CWS Lite doesn't try to bypass login pages or anti-bot challenges.</p>
-        </div>
+      <div class="options">
+        <fieldset>
+          <legend>Store</legend>
+          <label><input type="radio" name="store" value="google" checked> Chrome Web Store <small>(.crx)</small></label>
+          <label><input type="radio" name="store" value="firefox"> Firefox Add-ons <small>(.xpi)</small></label>
+        </fieldset>
+        <fieldset>
+          <legend>Type</legend>
+          <label><input type="radio" name="kind" value="extensions" checked> Extensions</label>
+          <label><input type="radio" name="kind" value="themes"> Themes</label>
+        </fieldset>
       </div>
+    </form>
+
+    <div id="resultsSection" aria-live="polite" aria-busy="false">
+      <div id="resultsContent"></div>
+    </div>
+
+    <details class="help">
+      <summary>Trouble installing a download?</summary>
+      <h3>Chrome Web Store (.crx)</h3>
+      <p><b>Ungoogled Chromium:</b> open <code>chrome://flags/#extension-mime-request-handling</code>, set <i>Handling of extension MIME type requests</i> to <i>Always prompt for install</i>, then relaunch. If the flag is missing, open <code>chrome://extensions</code>, enable <i>Developer mode</i> and drag the <code>.crx</code> file onto the page.</p>
+      <p><b>Chromium / Chrome:</b> try Developer mode and drag-and-drop. Some builds and managed devices block local CRX installs; use the listing page instead.</p>
+      <h3>Firefox Add-ons (.xpi)</h3>
+      <p>Firefox should offer to install right after clicking the link. If it only saves the file, open <code>about:addons</code>, click the gear icon and choose <i>Install Add-on From File…</i>. Packages are the original signed files from addons.mozilla.org.</p>
+      <h3>Invalid package, or no prompt</h3>
+      <p>Right-click the link and choose <i>Save link as</i>, then retry from the local file. Make sure the file is not zero bytes and that a proxy did not replace it with an error page.</p>
+      <h3>No results</h3>
+      <p>The Chrome Web Store changes often and does not offer a public API, so its listings are read from page HTML. Try a shorter search or check your connection. CWS Lite does not try to get around logins or anti-bot checks.</p>
     </details>
 
-    <footer class="footer">
-      <span>Small, local, and open source.</span>
-      <a href="https://chromewebstore.google.com/" target="_blank" rel="noopener noreferrer">Official Chrome Web Store ↗</a>
-    </footer>
-  </main>
+    <hr>
+    <p class="footer">
+      <a href="https://chromewebstore.google.com/" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> -
+      <a href="https://addons.mozilla.org/" target="_blank" rel="noopener noreferrer">Firefox Add-ons</a><br>
+      CWS Lite 1.0.0 - small, local and open source
+    </p>
+  </div>
 
-    <script src="/scripts.js" defer></script>
+  <script src="/scripts.js" defer></script>
 </body>
 </html>

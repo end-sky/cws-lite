@@ -1,72 +1,59 @@
+// CWS Lite - a small local front end for the Chrome Web Store and Firefox Add-ons.
+//
+//	main.go     HTTP server, routing, search cache
+//	common/     shared types and helpers
+//	google/     Chrome Web Store scraper + CRX download
+//	firefox/    Firefox Add-ons (AMO API) search + XPI download
+//	web/        embedded front end (index.html, style.css, scripts.go)
 package main
 
-// main.go: HTTP server, API handlers, cache and CRX download.
-// All Chrome Web Store scraping/parsing lives in scrapers.go.
-
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"log"
-	"mime"
 	"net/http"
-	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"cws-lite/common"
+	"cws-lite/firefox"
+	"cws-lite/google"
 	"cws-lite/web"
 )
+
+// Version is the release version, also reported by /api/health.
+const Version = "1.0.0"
 
 //go:embed web/index.html web/style.css
 var webFiles embed.FS
 
 const (
-	defaultAddr        = "127.0.0.1:8080"
-	searchTimeout      = 9 * time.Second
-	searchBodyLimit    = 6 << 20
-	maxResults         = 24
-	cacheLifetime      = 4 * time.Minute
-	maxCachedSearches  = 128
-	defaultProdVersion = "156.0.0.0"
+	defaultAddr       = "127.0.0.1:8080"
+	cacheLifetime     = 4 * time.Minute
+	maxCachedSearches = 128
+	maxQueryRunes     = 120
 )
 
-var (
-	bareIDRE           = regexp.MustCompile(`^[a-p]{32}$`)
-	prodVersionRE      = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$`)
-	userAgentVersionRE = regexp.MustCompile(`(?i)(?:Chrome|Chromium)/([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)`)
-	unsafeFilename     = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
-)
-
-type Listing struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Publisher   string `json:"publisher,omitempty"`
-	Description string `json:"description,omitempty"`
-	Icon        string `json:"icon,omitempty"`
-	URL         string `json:"url"`
-	Kind        string `json:"kind"`
+// stores maps the ?store= value to its back end.
+var stores = map[string]struct {
+	search   func(ctx context.Context, query, kind string) common.SearchResponse
+	download http.HandlerFunc
+}{
+	"google":  {google.Search, google.Download},
+	"firefox": {firefox.Search, firefox.Download},
 }
 
-type SearchResponse struct {
-	Query   string    `json:"query"`
-	Kind    string    `json:"kind"`
-	Source  string    `json:"source,omitempty"`
-	Note    string    `json:"note,omitempty"`
-	Results []Listing `json:"results"`
-}
+const defaultStore = "google"
 
 type cacheEntry struct {
-	response SearchResponse
+	response common.SearchResponse
 	expires  time.Time
 	created  time.Time
 }
@@ -78,21 +65,21 @@ type searchCache struct {
 
 func newSearchCache() *searchCache { return &searchCache{m: make(map[string]cacheEntry)} }
 
-func (c *searchCache) get(key string) (SearchResponse, bool) {
+func (c *searchCache) get(key string) (common.SearchResponse, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry, ok := c.m[key]
 	if !ok {
-		return SearchResponse{}, false
+		return common.SearchResponse{}, false
 	}
 	if time.Now().After(entry.expires) {
 		delete(c.m, key)
-		return SearchResponse{}, false
+		return common.SearchResponse{}, false
 	}
 	return entry.response, true
 }
 
-func (c *searchCache) put(key string, response SearchResponse) {
+func (c *searchCache) put(key string, response common.SearchResponse) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now()
@@ -125,7 +112,7 @@ func main() {
 	mux.HandleFunc("GET /api/search", handleSearch)
 	mux.HandleFunc("GET /api/download", handleDownload)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": Version})
 	})
 	mux.HandleFunc("GET /scripts.js", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
@@ -143,8 +130,8 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-	log.Printf("CWS Lite listening at http://%s", addr)
-	log.Printf("Searches are proxied by this server; CRX packages are requested from Google's official update endpoint.")
+	log.Printf("CWS Lite %s listening at http://%s", Version, addr)
+	log.Printf("Searches are proxied by this server; packages come from Google's and Mozilla's official endpoints.")
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
@@ -160,34 +147,45 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+func storeParam(r *http.Request) string {
+	store := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("store")))
+	if store == "" {
+		return defaultStore
+	}
+	return store
+}
+
 func handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
 	if kind == "" {
-		kind = "extensions"
+		kind = common.KindExtensions
 	}
-	if kind != "extensions" && kind != "themes" {
+	store := storeParam(r)
+	backend, ok := stores[store]
+	switch {
+	case !ok:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "store must be google or firefox"})
+		return
+	case kind != common.KindExtensions && kind != common.KindThemes:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "type must be extensions or themes"})
 		return
-	}
-	if len([]rune(q)) > 120 {
+	case len([]rune(q)) > maxQueryRunes:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Search is limited to 120 characters."})
 		return
-	}
-	if q == "" {
+	case q == "":
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Enter a search term."})
 		return
 	}
 
-	key := kind + "\x00" + strings.ToLower(q)
+	key := store + "\x00" + kind + "\x00" + strings.ToLower(q)
 	if cached, ok := cache.get(key); ok {
 		writeJSON(w, http.StatusOK, cached)
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), searchTimeout*3)
+	ctx, cancel := context.WithTimeout(r.Context(), common.SearchTimeout*3)
 	defer cancel()
-	response := searchListings(ctx, q, kind)
+	response := backend.search(ctx, q, kind)
 	if len(response.Results) > 0 { // never pin a failed/empty lookup in the cache
 		cache.put(key, response)
 	}
@@ -195,90 +193,12 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDownload(w http.ResponseWriter, r *http.Request) {
-	id := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("id")))
-	if !bareIDRE.MatchString(id) {
-		http.Error(w, "Invalid Chrome Web Store extension ID.", http.StatusBadRequest)
+	backend, ok := stores[storeParam(r)]
+	if !ok {
+		http.Error(w, "store must be google or firefox", http.StatusBadRequest)
 		return
 	}
-	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
-	if kind != "themes" {
-		kind = "extensions"
-	}
-	name := strings.TrimSpace(r.URL.Query().Get("name"))
-	if name == "" {
-		name = id
-	}
-	filename := safeFilename(name) + ".crx"
-	prodVersion := strings.TrimSpace(os.Getenv("CWS_PRODVERSION"))
-	if prodVersion == "" {
-		if match := userAgentVersionRE.FindStringSubmatch(r.UserAgent()); len(match) > 1 {
-			prodVersion = match[1]
-		} else {
-			prodVersion = defaultProdVersion
-		}
-	}
-	if !prodVersionRE.MatchString(prodVersion) {
-		prodVersion = defaultProdVersion
-	}
-
-	query := url.Values{}
-	query.Set("response", "redirect")
-	query.Set("prodversion", prodVersion)
-	query.Set("acceptformat", "crx3,crx2")
-	query.Set("x", "id="+id+"&installsource=ondemand&uc")
-	endpoint := "https://clients2.google.com/service/update2/crx?" + query.Encode()
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		http.Error(w, "Could not prepare the download request.", http.StatusInternalServerError)
-		return
-	}
-	req.Header.Set("User-Agent", browserUserAgent)
-	req.Header.Set("Accept", "application/x-chrome-extension,application/octet-stream,*/*")
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		http.Error(w, "Download failed while contacting Google's package endpoint. Check your connection, proxy, or try again later.", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, fmt.Sprintf("Google's package endpoint returned HTTP %d. The listing may be removed, restricted, or temporarily unavailable.", resp.StatusCode), http.StatusBadGateway)
-		return
-	}
-
-	reader := bufio.NewReader(resp.Body)
-	magic, err := reader.Peek(4)
-	if err != nil || !bytes.Equal(magic, []byte("Cr24")) {
-		preview, _ := io.ReadAll(io.LimitReader(reader, 512))
-		message := "Google did not return a valid CRX package. The extension may be unavailable for this browser version."
-		if len(preview) > 0 && bytes.Contains(bytes.ToLower(preview), []byte("not found")) {
-			message = "Google reports that this package was not found or is no longer available."
-		}
-		http.Error(w, message, http.StatusBadGateway)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/x-chrome-extension")
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": filename}))
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-CWS-Kind", kind)
-	if _, err := io.Copy(w, reader); err != nil {
-		log.Printf("streaming CRX %s failed: %v", id, err)
-	}
-}
-
-func safeFilename(value string) string {
-	value = strings.TrimSpace(value)
-	value = strings.ReplaceAll(value, " ", "-")
-	value = unsafeFilename.ReplaceAllString(value, "-")
-	value = strings.Trim(value, ".-_ ")
-	if value == "" {
-		return "chrome-store-item"
-	}
-	return truncateRunes(value, 72)
+	backend.download(w, r)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
