@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	"cws-lite/common"
+	"troller/common"
 )
 
 const (
