@@ -1,4 +1,4 @@
-# Troller 1.1.0
+# Troller 1.1.1
 
 We do a little trolling
 
