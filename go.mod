@@ -1,3 +1,3 @@
-module cws-lite
+module troller
 
 go 1.23
