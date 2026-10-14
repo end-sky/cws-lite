@@ -29,8 +29,8 @@ Then open <http://127.0.0.1:8080>.
 Build a standalone binary:
 
 ```sh
-go build -trimpath -ldflags='-s -w' -o cws-lite .
-./cws-lite
+go build -trimpath -ldflags='-s -w' -o troller .
+./troller
 ```
 
 Run tests:
