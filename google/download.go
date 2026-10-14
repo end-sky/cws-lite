@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"cws-lite/common"
+	"troller/common"
 )
 
 const defaultProdVersion = "156.0.0.0"
