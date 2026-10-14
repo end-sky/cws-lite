@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"cws-lite/common"
+	"troller/common"
 )
 
 // Overridable in tests.
