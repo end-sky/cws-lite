@@ -1,9 +1,3 @@
-// Package web holds the front-end script served by CWS Lite.
-//
-// The JavaScript lives in a Go string so it ships inside the binary together
-// with index.html and style.css; main.go serves it at /scripts.js.
-// The source below is plain JS; it must not contain backticks (use string
-// concatenation instead of template literals).
 package web
 
 // Script is the page's JavaScript.
@@ -30,10 +24,10 @@ const Script = `(function () {
     themeToggle.textContent = dark ? 'Light mode' : 'Dark mode';
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = dark ? '#1a1a1a' : '#ffffff';
-    if (save) { try { localStorage.setItem('cws-lite-theme', theme); } catch (_) {} }
+    if (save) { try { localStorage.setItem('troller-theme', theme); } catch (_) {} }
   }
   var saved = null;
-  try { saved = localStorage.getItem('cws-lite-theme'); } catch (_) {}
+  try { saved = localStorage.getItem('troller-theme'); } catch (_) {}
   if (saved !== 'dark' && saved !== 'light') {
     saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
