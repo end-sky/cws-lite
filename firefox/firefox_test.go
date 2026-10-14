@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"cws-lite/common"
+	"troller/common"
 )
 
 func fakeAMO(t *testing.T) *httptest.Server {
