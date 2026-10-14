@@ -29,7 +29,21 @@ if ($method !== 'GET' && $method !== 'HEAD') {
     return;
 }
 
+if (str_starts_with($path, '/assets/')) {
+    serve_asset(substr($path, strlen('/assets/')));
+    return;
+}
+
 switch ($path) {
+    case '/favicon.ico': // browsers ask for this by default
+        $fav = find_asset('favicon', ASSET_FAVICON_EXTS);
+        if ($fav === null) {
+            plain_error(404, '404 page not found');
+        } else {
+            serve_asset_file($fav['file'], $fav['mime']);
+        }
+        return;
+
     case '/api/search':
         [$status, $payload] = run_search(
             (string)($_GET['q'] ?? ''),
@@ -112,6 +126,8 @@ function render_page(): void
         'firefox' => ['name' => 'Firefox Add-ons', 'action' => 'Install .xpi', 'noun' => ['extensions' => 'Add-on', 'themes' => 'Theme']],
     ];
     $info = $stores[$store];
+    $logo = find_asset('logo', ASSET_LOGO_EXTS);
+    $favicon = find_asset('favicon', ASSET_FAVICON_EXTS);
 
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
@@ -124,7 +140,11 @@ function render_page(): void
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff">
   <title>Troller</title>
+<?php if ($favicon !== null): ?>
+  <link rel="icon" href="<?= h($favicon['url']) ?>" type="<?= h($favicon['mime']) ?>">
+<?php else: ?>
   <link rel="icon" href="data:,">
+<?php endif; ?>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -135,6 +155,10 @@ function render_page(): void
   <div class="page">
     <h1 class="wordmark">Troll<span> er</span></h1>
     <p class="tagline">Browser extensions &amp; themes, nothing else.</p>
+
+<?php if ($logo !== null): ?>
+    <img id="logo" class="logo" src="<?= h($logo['url']) ?>" alt="" draggable="false">
+<?php endif; ?>
 
     <form id="searchForm" role="search" class="searchbox" method="get" action="/">
       <input id="searchInput" name="q" type="text" maxlength="120" autocomplete="off" autofocus aria-label="Search" required value="<?= h($q) ?>">
