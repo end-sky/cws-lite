@@ -22,14 +22,14 @@ import (
 	"sync"
 	"time"
 
-	"cws-lite/common"
-	"cws-lite/firefox"
-	"cws-lite/google"
-	"cws-lite/web"
+	"troller/common"
+	"troller/firefox"
+	"troller/google"
+	"troller/web"
 )
 
 // Version is the release version, also reported by /api/health.
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 //go:embed web/index.html web/style.css
 var webFiles embed.FS
