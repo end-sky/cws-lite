@@ -4,7 +4,16 @@
 
 declare(strict_types=1);
 
-const TROLLER_VERSION = '1.1.0';
+const TROLLER_VERSION = '1.1.1';
+
+// Drop-in images live in assets/: logo.<ext> (shown on the page) and
+// favicon.<ext> (tab icon). The first existing extension in the lists wins.
+const ASSET_LOGO_EXTS = ['png', 'svg', 'jpg', 'jpeg', 'gif', 'webp', 'avif'];
+const ASSET_FAVICON_EXTS = ['ico', 'png', 'svg', 'gif'];
+const ASSET_MIME = [
+    'png' => 'image/png', 'svg' => 'image/svg+xml', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+    'gif' => 'image/gif', 'webp' => 'image/webp', 'avif' => 'image/avif', 'ico' => 'image/x-icon',
+];
 
 const SEARCH_TIMEOUT = 9.0;           // seconds per upstream request
 const SEARCH_BODY_LIMIT = 6 << 20;    // bytes read from any upstream page
@@ -104,6 +113,53 @@ function first_non_empty(string ...$values): string
 function to_utf8(string $s): string
 {
     return mb_scrub($s, 'UTF-8');
+}
+
+// ---------------------------------------------------------------------------
+// Assets (logo + favicon)
+// ---------------------------------------------------------------------------
+
+/**
+ * Finds assets/<stem>.<ext>. Returns ['url' => '/assets/…?v=<mtime>', 'mime' => …]
+ * or null when nothing has been dropped in yet.
+ */
+function find_asset(string $stem, array $exts, ?string $dir = null): ?array
+{
+    $dir ??= __DIR__ . '/../assets';
+    foreach ($exts as $ext) {
+        $file = $dir . '/' . $stem . '.' . $ext;
+        if (is_file($file)) {
+            return [
+                'url' => '/assets/' . $stem . '.' . $ext . '?v=' . (int)@filemtime($file),
+                'mime' => ASSET_MIME[$ext],
+                'file' => $file,
+            ];
+        }
+    }
+    return null;
+}
+
+/** Sends a file from assets/ (only known image types, plain file names). */
+function serve_asset(string $name): void
+{
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $file = __DIR__ . '/../assets/' . $name;
+    if (!preg_match('/^[A-Za-z0-9._-]+\z/', $name) || !isset(ASSET_MIME[$ext]) || !is_file($file)) {
+        plain_error(404, '404 page not found');
+        return;
+    }
+    serve_asset_file($file, ASSET_MIME[$ext]);
+}
+
+function serve_asset_file(string $file, string $mime): void
+{
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: no-cache'); // swapping a file takes effect immediately
+    header('Content-Length: ' . filesize($file));
+    if ($mime === 'image/svg+xml') { // never run scripts if an SVG is opened directly
+        header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    }
+    readfile($file);
 }
 
 // ---------------------------------------------------------------------------

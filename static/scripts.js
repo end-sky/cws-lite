@@ -1,5 +1,6 @@
 // Everything else is server-rendered PHP; this only handles the theme toggle,
-// a "Searching..." state on submit, and a letter fallback for broken icons.
+// a "Searching..." state on submit, a letter fallback for broken icons, and
+// the logo spin easter egg.
 (function () {
   var root = document.documentElement;
   var toggle = document.getElementById('themeToggle');
@@ -24,6 +25,12 @@
     button.disabled = false;
     button.textContent = 'Search';
   });
+
+  var logo = document.getElementById('logo'); // easter egg: click the picture, it spins
+  if (logo) {
+    logo.onclick = function () { logo.classList.add('spin'); };
+    logo.onanimationend = function () { logo.classList.remove('spin'); };
+  }
 
   addEventListener('error', function (e) {
     var img = e.target;
