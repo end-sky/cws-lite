@@ -4,7 +4,7 @@
 
 declare(strict_types=1);
 
-const TROLLER_VERSION = '1.1.1';
+const TROLLER_VERSION = '1.1.0';
 
 const SEARCH_TIMEOUT = 9.0;           // seconds per upstream request
 const SEARCH_BODY_LIMIT = 6 << 20;    // bytes read from any upstream page
