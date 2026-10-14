@@ -54,20 +54,12 @@ web/           embedded front end: index.html, style.css, scripts.go (JS as a Go
 
 API: `GET /api/search?q=…&type=extensions|themes&store=google|firefox`, `GET /api/download?store=…&id=…&name=…`, `GET /api/health`. `store` defaults to `google`.
 
-## Nix
+## Build
 
-Build with flakes enabled:
+Build with Go
 
-```sh
-nix build
-./result/bin/cws-lite
-```
-
-Or launch without building a package first:
-
-```sh
-nix develop
- go run .
+```bash
+go build .
 ```
 
 ## Installing a download
