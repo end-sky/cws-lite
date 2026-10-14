@@ -18,61 +18,32 @@ A small, self-hosted front end for browsing and downloading extensions and theme
 
 ## Run
 
-Go 1.23 or newer is recommended.
-
 ```sh
-go run .
+php -S localhost:8000
 ```
 
-Then open <http://127.0.0.1:8080>.
+Or any port you desire.
+
+Then open <http://localhost:8000>.
 
 Build a standalone binary:
-
-```sh
-go build -trimpath -ldflags='-s -w' -o troller .
-./troller
-```
-
-Run tests:
-
-```sh
-go test ./...
-```
 
 ### Configuration
 
 - `ADDR` changes the listen address. Default: `127.0.0.1:8080`. Use `ADDR=0.0.0.0:8080` only if you intentionally want other devices on your network to access the UI.
 - `CWS_PRODVERSION` overrides the Chrome version sent to Google's CRX update endpoint. By default, CWS Lite extracts the version from the requesting browser's user agent, falling back to `156.0.0.0`. Use four numeric version components, such as `156.0.0.0`.
 
-## Code layout
-
-```
-main.go        HTTP server, routing, search cache
-common/        shared types (Listing, SearchResponse) and helpers
-google/        Chrome Web Store: HTML scraper, detail-page enrichment, CRX download
-firefox/       Firefox Add-ons: addons.mozilla.org API search, XPI download
-web/           embedded front end: index.html, style.css, scripts.go (JS as a Go string)
-```
-
 API: `GET /api/search?q=…&type=extensions|themes&store=google|firefox`, `GET /api/download?store=…&id=…&name=…`, `GET /api/health`. `store` defaults to `google`.
-
-## Build
-
-Build with Go
-
-```bash
-go build .
-```
 
 ## Installing a download
 
-CWS Lite serves CRX packages using the extension MIME type so compatible Ungoogled Chromium builds can show their native install prompt when the flag is enabled. Other browsers may save the file instead; CWS Lite never installs add-ons silently, and the browser controls the final prompt.
+Troller serves CRX packages using the extension MIME type so compatible Ungoogled Chromium builds can show their native install prompt when the flag is enabled. Other browsers may save the file instead; Troller never installs add-ons silently, and the browser controls the final prompt.
 
 ### Ungoogled Chromium
 
 1. Open `chrome://flags/#extension-mime-request-handling`.
 2. Set **Handling of extension MIME type requests** to **Always prompt for install**, if the flag is available.
-3. Relaunch the browser, then open a CWS Lite `.crx` download. If no prompt appears, open `chrome://extensions`, enable **Developer mode**, and drag the downloaded file onto that page.
+3. Relaunch the browser, then open a Troller `.crx` download. If no prompt appears, open `chrome://extensions`, enable **Developer mode**, and drag the downloaded file onto that page.
 
 If the flag is missing, use the Developer mode drag-and-drop method. Some desktop environments or browser builds may behave differently.
 
